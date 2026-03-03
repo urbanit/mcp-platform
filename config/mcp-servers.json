@@ -1,0 +1,31 @@
+{
+  "llm": {
+    "active": "claude",
+    "providers": {
+      "claude": {
+        "type": "claude",
+        "model": "claude-sonnet-4-6",
+        "maxTokens": 4096
+      },
+      "copilot": {
+        "type": "copilot",
+        "model": "gpt-4o",
+        "baseUrl": "https://models.inference.ai.azure.com"
+      }
+    }
+  },
+  "mcpServers": [
+    {
+      "id": "calculator",
+      "name": "Calculator",
+      "url": "http://mcp-calculator:3001/mcp",
+      "enabled": true
+    },
+    {
+      "id": "map",
+      "name": "Map & Geocoding",
+      "url": "http://mcp-map:3002/mcp",
+      "enabled": true
+    }
+  ]
+}

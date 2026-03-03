@@ -1,0 +1,57 @@
+name: mcp-platform
+
+networks:
+  mcp-net:
+    driver: bridge
+
+services:
+
+  mcp-calculator:
+    build: ./mcp-servers/calculator
+    container_name: mcp-calculator
+    networks: [mcp-net]
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+
+  mcp-map:
+    build: ./mcp-servers/map
+    container_name: mcp-map
+    networks: [mcp-net]
+    ports:
+      - "3002:3002"
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: mcp-backend
+    networks: [mcp-net]
+    ports:
+      - "4000:4000"
+    env_file: .env
+    environment:
+      CONFIG_PATH: /app/config/mcp-servers.json
+    volumes:
+      - ./config:/app/config
+    depends_on:
+      mcp-calculator:
+        condition: service_healthy
+      mcp-map:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./frontend/Dockerfile
+      args:
+        VITE_WS_URL: ws://localhost:8080/ws
+        VITE_API_URL: http://localhost:8080
+    container_name: mcp-frontend
+    networks: [mcp-net]
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
