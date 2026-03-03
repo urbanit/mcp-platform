@@ -10,7 +10,8 @@ A full-stack [Model Context Protocol](https://modelcontextprotocol.io) client pl
 - **Agentic tool use** — LLM autonomously calls MCP tools and streams results back
 - **Rich content rendering** — map tool results render as interactive Leaflet maps; code blocks use syntax highlighting
 - **LLM switcher** — toggle between Claude and GitHub Models (GPT-4o) from the chat UI without restarting
-- **Status page** — live view of LLM config and MCP server health
+- **Status page** — live view of LLM config and MCP server health; add/remove servers at runtime
+- **Embeddable web component** — drop `<mcp-chat>` into any HTML page with a single script tag
 - **Fully Dockerized** — single `docker compose up --build`
 
 ## Architecture
@@ -86,27 +87,24 @@ Edit `config/mcp-servers.json` to switch LLMs or add MCP servers. Changes are li
 
 ## Embedding the Chat Widget
 
-The chat UI is available as a native web component you can drop into any HTML page.
+The chat UI is available as a native web component (`<mcp-chat>`) served at `/widget/mcp-chat.js`. It's a self-contained IIFE bundle with all CSS inlined — no extra stylesheet needed.
 
-**1. Add the script tag** (points to your running MCP Platform instance):
 ```html
-<script src="http://your-server:8080/widget/mcp-chat.js"></script>
-```
-
-**2. Use the element:**
-```html
-<!-- Full page — fills its container -->
-<mcp-chat
-  api-url="http://your-server:8080"
-  ws-url="ws://your-server:8080/ws"
-></mcp-chat>
-```
-
-**3. Size it with CSS:**
-```html
-<style>
-  mcp-chat { display: block; height: 600px; width: 100%; }
-</style>
+<!doctype html>
+<html>
+  <head>
+    <style>
+      mcp-chat { display: block; height: 600px; width: 100%; }
+    </style>
+  </head>
+  <body>
+    <script src="http://your-server:8080/widget/mcp-chat.js"></script>
+    <mcp-chat
+      api-url="http://your-server:8080"
+      ws-url="ws://your-server:8080/ws"
+    ></mcp-chat>
+  </body>
+</html>
 ```
 
 | Attribute | Description | Default |
@@ -114,7 +112,7 @@ The chat UI is available as a native web component you can drop into any HTML pa
 | `api-url` | Base URL of the MCP Platform backend | Same origin |
 | `ws-url` | WebSocket URL for streaming chat | Same origin `/ws` |
 
-If both attributes are omitted the widget connects to the same host it was loaded from, so no attributes are needed when serving from the same origin.
+If both attributes are omitted the widget connects to the same host it was loaded from — no attributes needed when embedding on the same origin.
 
 ## Adding an MCP Server
 
