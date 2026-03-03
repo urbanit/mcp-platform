@@ -4,18 +4,19 @@ import { InputBar } from './InputBar.js';
 import { useWebSocket } from '../../hooks/useWebSocket.js';
 import type { ChatMessage, WsMessage } from '../../types.js';
 
-const API = import.meta.env.VITE_API_URL ?? `http://${window.location.host}`;
-
 let msgIdCounter = 0;
 function nextId() { return `msg-${++msgIdCounter}-${Date.now()}`; }
 
 interface LlmProvider { id: string; type: string; model: string }
+interface Props { apiUrl?: string; wsUrl?: string }
 
-export function ChatWindow() {
+export function ChatWindow({ apiUrl, wsUrl }: Props = {}) {
+  const API = apiUrl ?? (import.meta.env.VITE_API_URL ?? `http://${window.location.host}`);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streamingContent, setStreamingContent] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
-  const { send, subscribe } = useWebSocket();
+  const { send, subscribe } = useWebSocket(wsUrl);
 
   // LLM switcher state
   const [providers, setProviders] = useState<LlmProvider[]>([]);
@@ -101,7 +102,7 @@ export function ChatWindow() {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh',
+        height: '100%',
         background: '#0f172a',
         color: '#f1f5f9',
         fontFamily: 'system-ui, sans-serif',

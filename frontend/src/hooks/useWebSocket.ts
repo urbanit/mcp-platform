@@ -3,41 +3,46 @@ import type { WsMessage } from '../types.js';
 
 type Subscriber = (msg: WsMessage) => void;
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? `ws://${window.location.host}/ws`;
+// Keyed by URL so multiple widget instances with different backends can coexist
+const wsInstances = new Map<string, WebSocket>();
+const subscriberMaps = new Map<string, Map<string, Subscriber>>();
 
-// Singleton WebSocket shared across all component instances
-let globalWs: WebSocket | null = null;
-const subscribers = new Map<string, Subscriber>();
+function defaultWsUrl(): string {
+  return import.meta.env.VITE_WS_URL ?? `ws://${window.location.host}/ws`;
+}
 
-function getWs(): WebSocket {
-  if (globalWs && globalWs.readyState < 2) return globalWs;
+function getWs(url: string): WebSocket {
+  const existing = wsInstances.get(url);
+  if (existing && existing.readyState < 2) return existing;
 
-  globalWs = new WebSocket(WS_URL);
+  const ws = new WebSocket(url);
+  wsInstances.set(url, ws);
+  if (!subscriberMaps.has(url)) subscriberMaps.set(url, new Map());
 
-  globalWs.onmessage = (event) => {
+  ws.onmessage = (event) => {
     let msg: WsMessage;
     try { msg = JSON.parse(event.data as string) as WsMessage; } catch { return; }
-    const sub = subscribers.get(msg.id);
+    const sub = subscriberMaps.get(url)?.get(msg.id);
     if (sub) sub(msg);
   };
 
-  globalWs.onclose = () => {
-    // Reconnect after short delay
-    setTimeout(() => { globalWs = null; }, 2000);
+  ws.onclose = () => {
+    setTimeout(() => { wsInstances.delete(url); }, 2000);
   };
 
-  return globalWs;
+  return ws;
 }
 
-export function useWebSocket() {
+export function useWebSocket(wsUrl?: string) {
+  const url = wsUrl ?? defaultWsUrl();
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    wsRef.current = getWs();
-  }, []);
+    wsRef.current = getWs(url);
+  }, [url]);
 
   function send(payload: unknown): void {
-    const ws = getWs();
+    const ws = getWs(url);
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(payload));
     } else {
@@ -46,8 +51,9 @@ export function useWebSocket() {
   }
 
   function subscribe(id: string, cb: Subscriber): () => void {
-    subscribers.set(id, cb);
-    return () => subscribers.delete(id);
+    if (!subscriberMaps.has(url)) subscriberMaps.set(url, new Map());
+    subscriberMaps.get(url)!.set(id, cb);
+    return () => subscriberMaps.get(url)?.delete(id);
   }
 
   return { send, subscribe };

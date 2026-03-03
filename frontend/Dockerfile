@@ -4,7 +4,7 @@ WORKDIR /app
 # Build context is project root — prefix paths with frontend/
 COPY frontend/package*.json ./
 RUN npm install
-COPY frontend/tsconfig.json frontend/vite.config.ts ./
+COPY frontend/tsconfig.json frontend/vite.config.ts frontend/vite.widget.config.ts ./
 COPY frontend/index.html frontend/status.html ./
 COPY frontend/src ./src
 
@@ -13,7 +13,7 @@ ARG VITE_API_URL=http://localhost:4000
 ENV VITE_WS_URL=$VITE_WS_URL
 ENV VITE_API_URL=$VITE_API_URL
 
-RUN npm run build
+RUN npm run build && npm run build:widget
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html

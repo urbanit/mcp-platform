@@ -84,6 +84,38 @@ Edit `config/mcp-servers.json` to switch LLMs or add MCP servers. Changes are li
 - `Show me Paris on a map` — geocodes via Nominatim and renders a Leaflet map
 - `What is the square root of 2 to 10 decimal places?` — chained calculator calls
 
+## Embedding the Chat Widget
+
+The chat UI is available as a native web component you can drop into any HTML page.
+
+**1. Add the script tag** (points to your running MCP Platform instance):
+```html
+<script src="http://your-server:8080/widget/mcp-chat.js"></script>
+```
+
+**2. Use the element:**
+```html
+<!-- Full page — fills its container -->
+<mcp-chat
+  api-url="http://your-server:8080"
+  ws-url="ws://your-server:8080/ws"
+></mcp-chat>
+```
+
+**3. Size it with CSS:**
+```html
+<style>
+  mcp-chat { display: block; height: 600px; width: 100%; }
+</style>
+```
+
+| Attribute | Description | Default |
+|---|---|---|
+| `api-url` | Base URL of the MCP Platform backend | Same origin |
+| `ws-url` | WebSocket URL for streaming chat | Same origin `/ws` |
+
+If both attributes are omitted the widget connects to the same host it was loaded from, so no attributes are needed when serving from the same origin.
+
 ## Adding an MCP Server
 
 **Via the status page UI** (recommended):
