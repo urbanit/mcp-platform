@@ -64,8 +64,8 @@ backend/src/
   llm/claude.ts             Anthropic SDK streaming adapter
   llm/copilot.ts            OpenAI SDK adapter (GitHub Models baseURL)
   mcp/client.ts             MCP SDK client wrapper
-  mcp/manager.ts            Multi-server aggregator, prefixes tool names {serverId}__{tool}
-  api/routes.ts             GET /health, GET|PUT /api/config, GET /api/status
+  mcp/manager.ts            Multi-server aggregator; addServer()/removeServer() for live management; prefixes tool names {serverId}__{tool}
+  api/routes.ts             GET /health, GET|PUT /api/config, GET /api/status, POST|DELETE /api/mcp-servers
   api/websocket.ts          WS chat handler — streams tokens/tool events to browser
   index.ts                  Entry point (top-level await, re-reads config per request)
 frontend/src/
@@ -92,6 +92,16 @@ nginx/nginx.conf            Proxies /ws and /api/ to backend; serves static file
 ## Rich Content Protocol
 
 Tool results with `{"__rich__": true, "type": "map", "lat", "lng", "zoom", "name"}` are detected in the WS handler and forwarded as `tool_result` messages. `RichRenderer` parses them and renders the appropriate widget. `MessageBubble` detects rich content (JSON starting with `{"__rich__"`) and renders it full-width, bypassing the 80% bubble width constraint.
+
+## MCP Server Management
+
+Servers can be added/removed at runtime without restarting:
+
+- **UI**: status page (`/status.html`) — Name + URL form at the bottom; **×** to remove
+- **API**: `POST /api/mcp-servers` `{ id, name, url }` / `DELETE /api/mcp-servers/:id`
+- Both immediately update the running `McpManager` and persist to `config/mcp-servers.json`
+- `McpManager` tracks all configured servers (including disconnected ones); only connected servers contribute tools
+- For external servers running on the host: use `http://host.docker.internal:<port>/mcp` (not `localhost`)
 
 ## Key Implementation Notes
 
