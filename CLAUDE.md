@@ -75,7 +75,7 @@ frontend/src/
   components/Status/        LlmStatus, McpServerStatus (add/remove form)
   chat-main.tsx             Chat page entry (plain React mount)
   status-main.tsx           Status page entry
-  widget.ts                 Web component entry — registers <mcp-chat> via r2wc
+  widget.tsx                Web component entry — registers <mcp-chat> as plain HTMLElement subclass
 frontend/vite.config.ts         App build (two HTML entry points)
 frontend/vite.widget.config.ts  Widget build — IIFE lib with CSS inlined, outputs dist/widget/mcp-chat.js
 nginx/nginx.conf            Proxies /ws and /api/ to backend; CORS on /widget/; serves static files
@@ -116,11 +116,14 @@ The chat UI is published as a native custom element `<mcp-chat>` at `/widget/mcp
 ```
 
 - Built by `vite.widget.config.ts` as an IIFE with all CSS inlined (`vite-plugin-css-injected-by-js`)
-- `api-url` / `ws-url` HTML attributes map to `apiUrl` / `wsUrl` React props (r2wc kebab→camel)
+- Implemented as a plain `HTMLElement` subclass (NOT r2wc/shadow DOM) — renders React via `createRoot` into a flex container that fills the host element
+- `api-url` / `ws-url` HTML attributes read via `getAttribute` and passed as `apiUrl` / `wsUrl` props
 - When attributes are omitted, falls back to same-origin (env vars → `window.location.host`)
 - `useWebSocket` is URL-keyed so multiple instances on the same page with different backends work
 - `ChatWindow` uses `height: 100%` — size the element with CSS (e.g. `mcp-chat { display: block; height: 600px }`)
+- Widget Vite config defines `process.env.NODE_ENV = "production"` — required to avoid "process is not defined" runtime error in IIFE bundles
 - Dockerfile runs `npm run build && npm run build:widget`; widget lands in `dist/widget/` alongside the app
+- **Do not use r2wc or shadow DOM** for this widget — shadow DOM isolates CSS injection and breaks height inheritance
 
 ## Key Implementation Notes
 
