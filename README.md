@@ -86,9 +86,17 @@ Edit `config/mcp-servers.json` to switch LLMs or add MCP servers. Changes are li
 
 ## Adding an MCP Server
 
-1. Build your MCP server using `@modelcontextprotocol/sdk` with StreamableHTTP transport
-2. Add it to `docker-compose.yml`
-3. Register it in `config/mcp-servers.json`
+**Via the status page UI** (recommended):
+1. Open **http://localhost:8080/status.html**
+2. Fill in the Name and URL fields at the bottom of the MCP Servers section and click **Add**
+3. The server is connected immediately and persisted to `config/mcp-servers.json`
+4. Click **×** next to any server to remove it
+
+**Via config file directly:**
+1. Add an entry to `config/mcp-servers.json` under `mcpServers`
+2. Restart the backend: `docker compose up -d --no-build --force-recreate backend`
+
+The server ID is auto-derived from the name (lowercased, spaces → hyphens). External servers (outside Docker) should use a URL reachable from the backend container — use `host.docker.internal` instead of `localhost` when running the MCP server on your machine.
 
 ## Tech Stack
 

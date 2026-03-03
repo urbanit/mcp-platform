@@ -4,7 +4,7 @@ import type { McpTool } from '../llm/types.js';
 
 export class McpClient {
   private client: Client;
-  private url: string;
+  public url: string;
   public id: string;
   public name: string;
 

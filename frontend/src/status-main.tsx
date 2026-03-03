@@ -8,13 +8,14 @@ interface StatusData {
     active: string;
     providers: Array<{ id: string; type: string; model: string; active: boolean }>;
   };
-  mcpServers: Array<{ id: string; name: string; connected: boolean; toolCount: number }>;
+  mcpServers: Array<{ id: string; name: string; url: string; connected: boolean; toolCount: number }>;
 }
 
 function StatusPage() {
   const [data, setData] = useState<StatusData | null>(null);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState('');
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     const poll = async () => {
@@ -31,7 +32,7 @@ function StatusPage() {
     poll();
     const t = setInterval(poll, 10_000);
     return () => clearInterval(t);
-  }, []);
+  }, [tick]);
 
   return (
     <div
@@ -58,7 +59,7 @@ function StatusPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
         <LlmStatus llm={data?.llm ?? null} error={error} />
-        <McpServerStatus servers={data?.mcpServers ?? []} error={error} />
+        <McpServerStatus servers={data?.mcpServers ?? []} error={error} onRefresh={() => setTick((n) => n + 1)} />
       </div>
     </div>
   );

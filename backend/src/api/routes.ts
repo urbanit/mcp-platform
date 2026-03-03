@@ -51,5 +51,40 @@ export function createRouter(mcpManager: McpManager): Router {
     }
   });
 
+  router.post('/api/mcp-servers', async (req, res) => {
+    try {
+      const { id, name, url } = req.body as { id?: string; name?: string; url?: string };
+      if (!id || !name || !url) {
+        res.status(400).json({ error: 'id, name, and url are required' });
+        return;
+      }
+      const config = await loadConfig();
+      if (config.mcpServers.find((s) => s.id === id)) {
+        res.status(409).json({ error: `Server with id "${id}" already exists` });
+        return;
+      }
+      const serverConfig = { id, name, url, enabled: true };
+      await mcpManager.addServer(serverConfig);
+      config.mcpServers.push(serverConfig);
+      await saveConfig(config);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  router.delete('/api/mcp-servers/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      await mcpManager.removeServer(id);
+      const config = await loadConfig();
+      config.mcpServers = config.mcpServers.filter((s) => s.id !== id);
+      await saveConfig(config);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
   return router;
 }
