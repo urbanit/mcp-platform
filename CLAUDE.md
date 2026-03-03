@@ -69,13 +69,16 @@ backend/src/
   api/websocket.ts          WS chat handler — streams tokens/tool events to browser
   index.ts                  Entry point (top-level await, re-reads config per request)
 frontend/src/
-  hooks/useWebSocket.ts     Singleton WS, subscriber map keyed by message id
-  components/Chat/          ChatWindow (LLM switcher), MessageList, MessageBubble, InputBar
+  hooks/useWebSocket.ts     URL-keyed singleton WS; accepts optional wsUrl param
+  components/Chat/          ChatWindow (accepts apiUrl/wsUrl props), MessageList, MessageBubble, InputBar
   components/RichContent/   RichRenderer, MapWidget (Leaflet), CodeBlock (highlight.js)
-  components/Status/        LlmStatus, McpServerStatus
-  chat-main.tsx             Chat page entry (r2wc custom element)
+  components/Status/        LlmStatus, McpServerStatus (add/remove form)
+  chat-main.tsx             Chat page entry (plain React mount)
   status-main.tsx           Status page entry
-nginx/nginx.conf            Proxies /ws and /api/ to backend; serves static files
+  widget.ts                 Web component entry — registers <mcp-chat> via r2wc
+frontend/vite.config.ts         App build (two HTML entry points)
+frontend/vite.widget.config.ts  Widget build — IIFE lib with CSS inlined, outputs dist/widget/mcp-chat.js
+nginx/nginx.conf            Proxies /ws and /api/ to backend; CORS on /widget/; serves static files
 ```
 
 ## WebSocket Protocol
@@ -102,6 +105,22 @@ Servers can be added/removed at runtime without restarting:
 - Both immediately update the running `McpManager` and persist to `config/mcp-servers.json`
 - `McpManager` tracks all configured servers (including disconnected ones); only connected servers contribute tools
 - For external servers running on the host: use `http://host.docker.internal:<port>/mcp` (not `localhost`)
+
+## Web Component / Widget
+
+The chat UI is published as a native custom element `<mcp-chat>` at `/widget/mcp-chat.js`.
+
+```html
+<script src="http://your-server:8080/widget/mcp-chat.js"></script>
+<mcp-chat api-url="http://your-server:8080" ws-url="ws://your-server:8080/ws"></mcp-chat>
+```
+
+- Built by `vite.widget.config.ts` as an IIFE with all CSS inlined (`vite-plugin-css-injected-by-js`)
+- `api-url` / `ws-url` HTML attributes map to `apiUrl` / `wsUrl` React props (r2wc kebab→camel)
+- When attributes are omitted, falls back to same-origin (env vars → `window.location.host`)
+- `useWebSocket` is URL-keyed so multiple instances on the same page with different backends work
+- `ChatWindow` uses `height: 100%` — size the element with CSS (e.g. `mcp-chat { display: block; height: 600px }`)
+- Dockerfile runs `npm run build && npm run build:widget`; widget lands in `dist/widget/` alongside the app
 
 ## Key Implementation Notes
 
