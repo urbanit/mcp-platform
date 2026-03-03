@@ -1,8 +1,10 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Project: MCP Client Platform
 
-A full MCP (Model Context Protocol) client platform connecting LLMs (Claude, GitHub Copilot) to MCP servers, with a streaming React chat UI and status page — all running in Docker Compose.
+A full MCP (Model Context Protocol) client platform connecting LLMs (Claude, GitHub Models/gpt-4o) to MCP servers, with a streaming React chat UI and status page — all running in Docker Compose.
 
 ## Architecture
 
@@ -11,22 +13,21 @@ Browser
   ├── localhost:8080  →  frontend (nginx + React Vite build)
   │     ├── /              Chat page
   │     └── /status.html   Status/verification page
-  └── localhost:4000  →  backend (Express + WebSocket)
-        ├── WS /ws          streaming chat
-        ├── GET /api/status LLM + MCP health
-        └── GET|PUT /api/config  read/write config
+  └── localhost:8080  →  nginx proxies:
+        ├── /ws       →  backend:4000  (WebSocket upgrade)
+        └── /api/     →  backend:4000  (REST)
 ```
 
 Docker network `mcp-net` — backend connects to MCP servers by container name.
 
 ## Services
 
-| Service        | Port | Description                     |
-|----------------|------|---------------------------------|
-| mcp-calculator | 3001 | Calculator MCP server           |
-| mcp-map        | 3002 | Map/geocoding MCP server        |
-| backend        | 4000 | Express + WS, LLM adapters      |
-| frontend       | 8080 | nginx serving Vite React build  |
+| Service        | Port | Description                    |
+|----------------|------|--------------------------------|
+| mcp-calculator | 3001 | Calculator MCP server          |
+| mcp-map        | 3002 | Map/geocoding MCP server       |
+| backend        | 4000 | Express + WS, LLM adapters     |
+| frontend       | 8080 | nginx serving Vite React build |
 
 ## Build & Run
 
@@ -37,52 +38,68 @@ cp .env.example .env
 docker compose up --build
 ```
 
-## Development (without Docker)
-
+To rebuild a single service after code changes:
 ```bash
-# Each service — run in separate terminals
-cd mcp-servers/calculator && npm install && npm run dev
-cd mcp-servers/map        && npm install && npm run dev
-cd backend                && npm install && npm run dev
-cd frontend               && npm install && npm run dev
+docker compose build backend && docker compose up -d --no-build --force-recreate backend
 ```
+
+Use `--force-recreate` (not `restart`) to ensure env vars are reloaded.
 
 ## Config
 
-Edit `config/mcp-servers.json` to:
-- Switch active LLM (`llm.active`: `"claude"` | `"copilot"`)
-- Add/remove MCP servers
-- Use `PUT /api/config` to update at runtime without restarting
+`config/mcp-servers.json` controls the active LLM and MCP servers. The backend volume-mounts this file so changes take effect immediately via `PUT /api/config` — no restart needed.
+
+- Switch active LLM: set `llm.active` to `"claude"` or `"copilot"`
+- The `copilot` provider uses **GitHub Models** (`models.inference.ai.azure.com`) with a PAT — not `api.githubcopilot.com` (which requires an OAuth app token, not a PAT)
 
 ## Directory Structure
 
 ```
-mcp-servers/calculator/   Calculator MCP (add, subtract, multiply, divide, power)
-mcp-servers/map/          Map MCP (search_location → Nominatim + Leaflet rich payload)
+config/mcp-servers.json     LLM + MCP server config (live-reloaded)
+mcp-servers/calculator/     Calculator MCP (add, subtract, multiply, divide, power)
+mcp-servers/map/            Map MCP (search_location → Nominatim → rich Leaflet payload)
 backend/src/
-  config/loader.ts        Read/write mcp-servers.json
-  llm/types.ts            ILlmAdapter interface
-  llm/claude.ts           Anthropic SDK streaming adapter
-  llm/copilot.ts          OpenAI SDK (GitHub Copilot) adapter
-  mcp/client.ts           MCP SDK client wrapper
-  mcp/manager.ts          Multi-server aggregator
-  api/routes.ts           REST endpoints
-  api/websocket.ts        WS chat handler
-  index.ts                Entry point
+  config/loader.ts          Read/write mcp-servers.json via CONFIG_PATH env var
+  llm/types.ts              ILlmAdapter interface, shared types
+  llm/claude.ts             Anthropic SDK streaming adapter
+  llm/copilot.ts            OpenAI SDK adapter (GitHub Models baseURL)
+  mcp/client.ts             MCP SDK client wrapper
+  mcp/manager.ts            Multi-server aggregator, prefixes tool names {serverId}__{tool}
+  api/routes.ts             GET /health, GET|PUT /api/config, GET /api/status
+  api/websocket.ts          WS chat handler — streams tokens/tool events to browser
+  index.ts                  Entry point (top-level await, re-reads config per request)
 frontend/src/
-  hooks/useWebSocket.ts   Singleton WS with subscriber map
-  components/Chat/        ChatWindow, MessageList, MessageBubble, InputBar
-  components/RichContent/ RichRenderer, MapWidget (Leaflet), CodeBlock (highlight.js)
-  components/Status/      LlmStatus, McpServerStatus
-  chat-main.tsx           Chat page entry
-  status-main.tsx         Status page entry
+  hooks/useWebSocket.ts     Singleton WS, subscriber map keyed by message id
+  components/Chat/          ChatWindow (LLM switcher), MessageList, MessageBubble, InputBar
+  components/RichContent/   RichRenderer, MapWidget (Leaflet), CodeBlock (highlight.js)
+  components/Status/        LlmStatus, McpServerStatus
+  chat-main.tsx             Chat page entry (r2wc custom element)
+  status-main.tsx           Status page entry
+nginx/nginx.conf            Proxies /ws and /api/ to backend; serves static files
 ```
 
-## Key Notes
+## WebSocket Protocol
 
-- All Node services use `"type": "module"` + TypeScript + Node 22 Alpine
-- MCP SDK imports require `.js` extension in TS source
-- `VITE_WS_URL` and `VITE_API_URL` are baked in at build time via Docker build args
-- Leaflet icons fixed with `Icon.Default.mergeOptions()` pointing to unpkg CDN
+**Client → Server:** `{ type: 'chat', id, message, history }`
+
+**Server → Client:**
+- `{ type: 'token', id, delta }` — streamed text chunk
+- `{ type: 'tool_call', id, toolName, serverId, args }`
+- `{ type: 'tool_result', id, toolName, result }`
+- `{ type: 'done', id, finalText }`
+- `{ type: 'error', id, message }`
+
+## Rich Content Protocol
+
+Tool results with `{"__rich__": true, "type": "map", "lat", "lng", "zoom", "name"}` are detected in the WS handler and forwarded as `tool_result` messages. `RichRenderer` parses them and renders the appropriate widget. `MessageBubble` detects rich content (JSON starting with `{"__rich__"`) and renders it full-width, bypassing the 80% bubble width constraint.
+
+## Key Implementation Notes
+
+- All Node services: `"type": "module"` + TypeScript + Node 22 Alpine
+- MCP SDK imports require `.js` extension in TS source (ESM)
+- MCP servers are **stateless**: create a new `McpServer` + `StreamableHTTPServerTransport` per request
+- `VITE_WS_URL` and `VITE_API_URL` are baked in at Vite build time via Docker build args (point to port 8080)
+- Leaflet icons patched at module level: `delete (L.Icon.Default.prototype as any)._getIconUrl` + `mergeOptions()` with unpkg CDN URLs
 - Nominatim (free geocoding) requires `User-Agent` header; rate limit 1 req/sec
-- Tool names are prefixed `{serverId}__{toolName}` to avoid collisions across servers
+- Express 5 wildcard route syntax: `/{*path}` (not `*`)
+- `import.meta.env` requires `/// <reference types="vite/client" />` in `vite-env.d.ts`
